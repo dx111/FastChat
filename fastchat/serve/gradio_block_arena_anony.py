@@ -162,12 +162,12 @@ DEFAULT_WEIGHTS = {
     "gpt-3.5-turbo": 1.5,
     "claude-v1": 1.5,
     "claude-instant-v1.1": 1.5,
-    "bard": 1.5,
+    "bard": 2.5,
     "vicuna-13b": 1.5,
     "koala-13b": 1.5,
     "RWKV-4-Raven-14B": 1.2,
     "oasst-pythia-12b": 1.2,
-    "mpt-7b-chat": 1.2,
+    "mpt-7b-chat": 1.5,
     "fastchat-t5-3b": 1,
     "alpaca-13b": 1,
     "chatglm-6b": 1,
@@ -383,7 +383,7 @@ Please scroll down and start chatting. You can view a leaderboard of participati
             label="Top P",
         )
         max_output_tokens = gr.Slider(
-            minimum=0,
+            minimum=16,
             maximum=1024,
             value=512,
             step=64,

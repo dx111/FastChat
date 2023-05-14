@@ -356,7 +356,7 @@ By using this service, users are required to agree to the following terms: The s
             label="Top P",
         )
         max_output_tokens = gr.Slider(
-            minimum=0,
+            minimum=16,
             maximum=1024,
             value=512,
             step=64,
