@@ -3,7 +3,7 @@
 import sys
 from typing import List, Optional
 import warnings
-from functools import cache
+from functools import lru_cache as cache
 
 import torch
 from transformers import (

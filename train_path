@@ -1,0 +1,97 @@
+diff --git a/fastchat/train/train.py b/fastchat/train/train.py
+index 6a369f1..fa7e8a4 100644
+--- a/fastchat/train/train.py
++++ b/fastchat/train/train.py
+@@ -12,6 +12,9 @@
+ #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ #    See the License for the specific language governing permissions and
+ #    limitations under the License.
++import os
++os.environ["WANDB_API_KEY"] = "429757c7959c797860bf632fc7b4c8bb40dc2ed8"
++os.environ["WANDB_MODE"] = "offline"
+  
+ import copy
+ from dataclasses import dataclass, field
+@@ -21,6 +24,7 @@ from typing import Dict, Optional, Sequence
+  
+ import numpy as np
+ import torch
++import torch_mlu
+ from torch.utils.data import Dataset
+ import transformers
+ from transformers import Trainer
+@@ -31,6 +35,11 @@ from fastchat.model.model_adapter import get_conversation_template
+  
+ IGNORE_TOKEN_ID = LabelSmoother.ignore_index
+  
++DEFAULT_PAD_TOKEN = "[PAD]"
++DEFAULT_MASK_TOKEN = "[MASK]"
++DEFAULT_EOS_TOKEN = "</s>"
++DEFAULT_BOS_TOKEN = "</s>"
++DEFAULT_UNK_TOKEN = "</s>"
+  
+ @dataclass
+ class ModelArguments:
+@@ -230,6 +239,31 @@ def make_supervised_data_module(
+     return dict(train_dataset=train_dataset, eval_dataset=eval_dataset)
+  
+  
++def smart_tokenizer_and_embedding_resize(
++    special_tokens_dict: Dict,
++    tokenizer: transformers.PreTrainedTokenizer,
++    model: transformers.PreTrainedModel,
++):
++    """Resize tokenizer and embedding.
++
++    Note: This is the unoptimized version that may make your embedding size not be divisible by 64.
++    """
++    num_new_tokens = tokenizer.add_special_tokens(special_tokens_dict)
++    model.resize_token_embeddings(len(tokenizer))
++
++    if num_new_tokens > 0:
++        input_embeddings = model.get_input_embeddings().weight.data
++        output_embeddings = model.get_output_embeddings().weight.data
++
++        input_embeddings_avg = input_embeddings[:-num_new_tokens].mean(
++            dim=0, keepdim=True)
++        output_embeddings_avg = output_embeddings[:-num_new_tokens].mean(
++            dim=0, keepdim=True)
++
++        input_embeddings[-num_new_tokens:] = input_embeddings_avg
++        output_embeddings[-num_new_tokens:] = output_embeddings_avg
++
++
+ def train():
+     global local_rank
+  
+@@ -250,7 +284,29 @@ def train():
+         padding_side="right",
+         use_fast=False,
+     )
+-    tokenizer.pad_token = tokenizer.unk_token
++    # import pdb
++    # pdb.set_trace()
++    # tokenizer.pad_token = tokenizer.unk_token
++
++    if tokenizer.pad_token is None:
++        smart_tokenizer_and_embedding_resize(
++            special_tokens_dict=dict(pad_token=DEFAULT_PAD_TOKEN),
++            tokenizer=tokenizer,
++            model=model,
++        )
++
++    # 增加MASK的index
++    smart_tokenizer_and_embedding_resize(
++            special_tokens_dict=dict(mask_token=DEFAULT_MASK_TOKEN),
++            tokenizer=tokenizer,
++            model=model,
++        )
++    if "llama" in model_args.model_name_or_path:
++        tokenizer.add_special_tokens({
++            "eos_token": DEFAULT_EOS_TOKEN,
++            "bos_token": DEFAULT_BOS_TOKEN,
++            "unk_token": DEFAULT_UNK_TOKEN,
++        })
+  
+     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
+     trainer = Trainer(
